@@ -1,1 +1,4 @@
 *.beam
+.eunit/
+.qc/
+/ebin/
