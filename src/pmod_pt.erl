@@ -316,6 +316,8 @@ expr({bc,Line,E0,Qs0},St) ->
 expr({tuple,Line,Es0},St) ->
     Es1 = expr_list(Es0,St),
     {tuple,Line,Es1};
+expr({record_index,_,_,_}=RI, _St) ->
+    RI;
 expr({record,Line,Name,Is0},St) ->
     Is = record_fields(Is0,St),
     {record,Line,Name,Is};

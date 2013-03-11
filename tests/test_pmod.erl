@@ -121,3 +121,11 @@ fun_test() ->
     Get = M:get_fun(),
     42 = Get().
 
+-record(r, {a,b,c}).
+
+record_index_test() ->
+    {2,3,4} = T = {#r.a,#r.b,#r.c},
+    record_index_match(T).
+
+record_index_match({#r.a,#r.b,#r.c}) ->
+    ok.
