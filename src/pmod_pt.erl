@@ -109,7 +109,9 @@ add_attributes([F|Fs], Attrs) ->
 add_new_funcs([{eof,_}|_]=Fs, NewFs) ->
     NewFs ++ Fs;
 add_new_funcs([F|Fs], Es) ->
-    [F|add_new_funcs(Fs, Es)].
+    [F|add_new_funcs(Fs, Es)];
+add_new_funcs([], NewFs) ->
+    NewFs.
 
 maybe_extend([], _, _) ->
     %% No 'extends' attribute.
