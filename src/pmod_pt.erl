@@ -48,7 +48,7 @@ parse_transform(Forms0, _Options) ->
     Forms = transform(Forms0),
     case erase(?MODULE) of
 	[] ->
-	    Forms;
+	    [{attribute, 0, compile, [tuple_calls]}|Forms];
 	[_|_]=Errors ->
 	    File = get_file(Forms),
 	    {error,[{File,Errors}],[]}
