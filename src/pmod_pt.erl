@@ -318,6 +318,21 @@ expr({bc,Line,E0,Qs0},St) ->
 expr({tuple,Line,Es0},St) ->
     Es1 = expr_list(Es0,St),
     {tuple,Line,Es1};
+expr({map, Line, Es0}, St) ->
+    Es1 = expr_list(Es0, St),
+    {map, Line, Es1};
+expr({map, Line, OldMap0, Es0}, St) ->
+    OldMap1 = expr(OldMap0, St),
+    Es1 = expr_list(Es0, St),
+    {map, Line, OldMap1, Es1};
+expr({map_field_assoc, Line, Key0, Val0}, St) ->
+    Key1 = expr(Key0, St),
+    Val1 = expr(Val0, St),
+    {map_field_assoc, Line, Key1, Val1};
+expr({map_field_exact, Line, Key0, Val0}, St) ->
+    Key1 = expr(Key0, St),
+    Val1 = expr(Val0, St),
+    {map_field_exact, Line, Key1, Val1};
 expr({record_index,_,_,_}=RI, _St) ->
     RI;
 expr({record,Line,Name,Is0},St) ->

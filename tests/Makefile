@@ -6,7 +6,8 @@ MODULES = \
 	pmod_basic.beam \
 	my_lists.beam \
 	static_call.beam \
-	fun_in_pmod.beam
+	fun_in_pmod.beam \
+	map_test.beam
 
 EBIN = $(dir $(CURDIR))ebin
 

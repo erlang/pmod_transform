@@ -129,3 +129,8 @@ record_index_test() ->
 
 record_index_match({#r.a,#r.b,#r.c}) ->
     ok.
+
+map_test() ->
+    M0 = map_test:new(#{}),
+    M1 = M0:add(a, 1),
+    M1:update(a, 2).
