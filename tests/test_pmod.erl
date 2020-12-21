@@ -101,10 +101,10 @@ static_test() ->
     M:test().
 
 self_extend_test() ->
-    [{23,_,extends_self}] = fail_compile(bad_extend).
+    [{{23,2},_,extends_self}] = fail_compile(bad_extend).
 
 defining_instance_test() ->
-    [{24,_,define_instance}] = fail_compile(defining_instance).
+    [{{24,1},_,define_instance}] = fail_compile(defining_instance).
 
 fail_compile(M) ->
     Filename = atom_to_list(M) ++ ".erl",

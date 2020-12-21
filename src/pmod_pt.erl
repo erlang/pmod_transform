@@ -59,8 +59,9 @@ format_error(extends_self) ->
 format_error(define_instance) ->
     "defining instance function not allowed in parameterized module".
 
-add_error(Line, Error) ->
-    put(?MODULE, get(?MODULE) ++ [{Line,?MODULE,Error}]).
+add_error(Anno, Error) ->
+    Location = erl_anno:location(Anno),
+    put(?MODULE, get(?MODULE) ++ [{Location,?MODULE,Error}]).
 
 get_file([{attribute,_,file,{File,_}}|_]) -> File;
 get_file([_|T]) -> get_file(T).
@@ -187,18 +188,18 @@ add_func(Name, Args, Body, Fs) ->
 collect_defined(Fs) ->
     [{N,A} || {function,_,N,A,_} <- Fs].
 
-attribs([{attribute,Line,module,{Mod,_}=ModAs}|T], Base, _, Acc) ->
-    attribs(T, Base, ModAs, [{attribute,Line,module,Mod}|Acc]);
+attribs([{attribute,Anno,module,{Mod,_}=ModAs}|T], Base, _, Acc) ->
+    attribs(T, Base, ModAs, [{attribute,Anno,module,Mod}|Acc]);
 attribs([{attribute,_,module,Mod}=H|T], Base, _, Acc) ->
     attribs(T, Base, Mod, [H|Acc]);
-attribs([{attribute,Line,extends,Base}|T], Base0, Ps, Acc) when is_atom(Base) ->
+attribs([{attribute,Anno,extends,Base}|T], Base0, Ps, Acc) when is_atom(Base) ->
     Mod = case Ps of
 	      {Mod0,_} -> Mod0;
 	      Mod0 -> Mod0
 	  end,
     case Mod of
 	Base ->
-	    add_error(Line, extends_self),
+	    add_error(Anno, extends_self),
 	    attribs(T, Base0, Ps, Acc);
 	_ ->
 	    attribs(T, Base, Ps, Acc)
@@ -216,16 +217,16 @@ update_function_name({F,A}) when F =/= new ->
 update_function_name(E) ->
     E.
 
-update_forms([{function,L,N,A,Cs}|Fs]) when N =/= new ->
-    [{function,L,N,A+1,Cs}|update_forms(Fs)];
+update_forms([{function,Anno,N,A,Cs}|Fs]) when N =/= new ->
+    [{function,Anno,N,A+1,Cs}|update_forms(Fs)];
 update_forms([F|Fs]) ->
     [F|update_forms(Fs)];
 update_forms([]) ->
     [].
 
-update_exps([{attribute,Line,export,Es0}|T]) ->
+update_exps([{attribute,Anno,export,Es0}|T]) ->
     Es = [update_function_name(E) || E <- Es0],
-    [{attribute,Line,export,Es}|update_exps(T)];
+    [{attribute,Anno,export,Es}|update_exps(T)];
 update_exps([H|T]) ->
     [H|update_exps(T)];
 update_exps([]) ->
@@ -241,12 +242,12 @@ forms([], St0) ->
     {[], St0}.
 
 %% Only function definitions are of interest here. State is not updated.
-form({function,Line,instance,_Arity,_Clauses}=F,St) ->
-    add_error(Line, define_instance),
+form({function,Anno,instance,_Arity,_Clauses}=F,St) ->
+    add_error(Anno, define_instance),
     {F,St};
-form({function,Line,Name0,Arity0,Clauses0},St) when Name0 =/= new ->
+form({function,Anno,Name0,Arity0,Clauses0},St) when Name0 =/= new ->
     {Name,Arity,Clauses} = function(Name0, Arity0, Clauses0, St),
-    {{function,Line,Name,Arity,Clauses},St};
+    {{function,Anno,Name,Arity,Clauses},St};
 %% Pass anything else through
 form(F,St) -> {F,St}.
 
@@ -255,18 +256,18 @@ function(Name, Arity, Clauses0, St) ->
     {Name,Arity,Clauses1}.
 
 clauses([C|Cs],#pmod{parameters=Ps}=St) ->
-    {clause,L,H,G,B0} = clause(C,St),
-    T = {tuple,L,[{var,L,V} || V <- ['_'|Ps]]},
-    B = [{match,L,{var,L,'_'},{var,L,V}} || V <- ['THIS'|Ps]] ++ B0,
-    [{clause,L,H++[{match,L,T,{var,L,'THIS'}}],G,B}|clauses(Cs,St)];
+    {clause,Anno,H,G,B0} = clause(C,St),
+    T = {tuple,Anno,[{var,Anno,V} || V <- ['_'|Ps]]},
+    B = [{match,Anno,{var,Anno,'_'},{var,Anno,V}} || V <- ['THIS'|Ps]] ++ B0,
+    [{clause,Anno,H++[{match,Anno,T,{var,Anno,'THIS'}}],G,B}|clauses(Cs,St)];
 clauses([],_St) -> [].
 
-clause({clause,Line,H,G,B0},St) ->
+clause({clause,Anno,H,G,B0},St) ->
     %% We never update H and G, so we will just copy them.
     B1 = exprs(B0,St),
-    {clause,Line,H,G,B1}.
+    {clause,Anno,H,G,B1}.
 
-pattern_grp([{bin_element,L1,E1,S1,T1} | Fs],St) ->
+pattern_grp([{bin_element,Anno1,E1,S1,T1} | Fs],St) ->
     S2 = case S1 of
 	     default ->
 		 default;
@@ -279,7 +280,7 @@ pattern_grp([{bin_element,L1,E1,S1,T1} | Fs],St) ->
 	     _ ->
 		 bit_types(T1)
 	 end,
-    [{bin_element,L1,expr(E1,St),S2,T2} | pattern_grp(Fs,St)];
+    [{bin_element,Anno1,expr(E1,St),S2,T2} | pattern_grp(Fs,St)];
 pattern_grp([],_St) ->
     [].
 
@@ -297,141 +298,141 @@ exprs([],_St) -> [].
 
 expr({var,_L,_V}=Var,_St) ->
     Var;
-expr({integer,_Line,_I}=Integer,_St) -> Integer;
-expr({float,_Line,_F}=Float,_St) -> Float;
-expr({atom,_Line,_A}=Atom,_St) -> Atom;
-expr({string,_Line,_S}=String,_St) -> String;
-expr({char,_Line,_C}=Char,_St) -> Char;
-expr({nil,_Line}=Nil,_St) -> Nil;
-expr({cons,Line,H0,T0},St) ->
+expr({integer,_Anno,_I}=Integer,_St) -> Integer;
+expr({float,_Anno,_F}=Float,_St) -> Float;
+expr({atom,_Anno,_A}=Atom,_St) -> Atom;
+expr({string,_Anno,_S}=String,_St) -> String;
+expr({char,_Anno,_C}=Char,_St) -> Char;
+expr({nil,_Anno}=Nil,_St) -> Nil;
+expr({cons,Anno,H0,T0},St) ->
     H1 = expr(H0,St),
     T1 = expr(T0,St),
-    {cons,Line,H1,T1};
-expr({lc,Line,E0,Qs0},St) ->
+    {cons,Anno,H1,T1};
+expr({lc,Anno,E0,Qs0},St) ->
     Qs1 = lc_bc_quals(Qs0,St),
     E1 = expr(E0,St),
-    {lc,Line,E1,Qs1};
-expr({bc,Line,E0,Qs0},St) ->
+    {lc,Anno,E1,Qs1};
+expr({bc,Anno,E0,Qs0},St) ->
     Qs1 = lc_bc_quals(Qs0,St),
     E1 = expr(E0,St),
-    {bc,Line,E1,Qs1};
-expr({tuple,Line,Es0},St) ->
+    {bc,Anno,E1,Qs1};
+expr({tuple,Anno,Es0},St) ->
     Es1 = expr_list(Es0,St),
-    {tuple,Line,Es1};
+    {tuple,Anno,Es1};
 expr({record_index,_,_,_}=RI, _St) ->
     RI;
-expr({record,Line,Name,Is0},St) ->
+expr({record,Anno,Name,Is0},St) ->
     Is = record_fields(Is0,St),
-    {record,Line,Name,Is};
-expr({record,Line,E0,Name,Is0},St) ->
+    {record,Anno,Name,Is};
+expr({record,Anno,E0,Name,Is0},St) ->
     E = expr(E0,St),
     Is = record_fields(Is0,St),
-    {record,Line,E,Name,Is};
-expr({record_field,Line,E0,Name,Key},St) ->
+    {record,Anno,E,Name,Is};
+expr({record_field,Anno,E0,Name,Key},St) ->
     E = expr(E0,St),
-    {record_field,Line,E,Name,Key};
-expr({block,Line,Es0},St) ->
+    {record_field,Anno,E,Name,Key};
+expr({block,Anno,Es0},St) ->
     Es1 = exprs(Es0,St),
-    {block,Line,Es1};
-expr({'if',Line,Cs0},St) ->
+    {block,Anno,Es1};
+expr({'if',Anno,Cs0},St) ->
     Cs1 = icr_clauses(Cs0,St),
-    {'if',Line,Cs1};
-expr({'case',Line,E0,Cs0},St) ->
+    {'if',Anno,Cs1};
+expr({'case',Anno,E0,Cs0},St) ->
     E1 = expr(E0,St),
     Cs1 = icr_clauses(Cs0,St),
-    {'case',Line,E1,Cs1};
-expr({'receive',Line,Cs0},St) ->
+    {'case',Anno,E1,Cs1};
+expr({'receive',Anno,Cs0},St) ->
     Cs1 = icr_clauses(Cs0,St),
-    {'receive',Line,Cs1};
-expr({'receive',Line,Cs0,To0,ToEs0},St) ->
+    {'receive',Anno,Cs1};
+expr({'receive',Anno,Cs0,To0,ToEs0},St) ->
     To1 = expr(To0,St),
     ToEs1 = exprs(ToEs0,St),
     Cs1 = icr_clauses(Cs0,St),
-    {'receive',Line,Cs1,To1,ToEs1};
-expr({'try',Line,Es0,Scs0,Ccs0,As0},St) ->
+    {'receive',Anno,Cs1,To1,ToEs1};
+expr({'try',Anno,Es0,Scs0,Ccs0,As0},St) ->
     Es1 = exprs(Es0,St),
     Scs1 = icr_clauses(Scs0,St),
     Ccs1 = icr_clauses(Ccs0,St),
     As1 = exprs(As0,St),
-    {'try',Line,Es1,Scs1,Ccs1,As1};
+    {'try',Anno,Es1,Scs1,Ccs1,As1};
 expr({'fun',_,{function,_,_,_}}=ExtFun,_St) ->
     ExtFun;
-expr({'fun',Line,Body},St) ->
+expr({'fun',Anno,Body},St) ->
     case Body of
 	{clauses,Cs0} ->
 	    Cs1 = fun_clauses(Cs0,St),
-	    {'fun',Line,{clauses,Cs1}};
+	    {'fun',Anno,{clauses,Cs1}};
 	{function,F,A} = Function ->
 	    {F1,A1} = update_function_name({F,A}),
 	    if A1 =:= A ->
-		    {'fun',Line,Function};
+		    {'fun',Anno,Function};
 	       true ->
 		    %% Must rewrite local fun-name to a fun that does a
 		    %% call with the extra THIS parameter.
-		    As = make_vars(A, Line),
-		    As1 = As ++ [{var,Line,'THIS'}],
-		    Call = {call,Line,{atom,Line,F1},As1},
-		    Cs = [{clause,Line,As,[],[Call]}],
-		    {'fun',Line,{clauses,Cs}}
+		    As = make_vars(A, Anno),
+		    As1 = As ++ [{var,Anno,'THIS'}],
+		    Call = {call,Anno,{atom,Anno,F1},As1},
+		    Cs = [{clause,Anno,As,[],[Call]}],
+		    {'fun',Anno,{clauses,Cs}}
 	    end;
 	{function,_M,_F,_A} = Fun4 ->		%This is an error in lint!
-	    {'fun',Line,Fun4}
+	    {'fun',Anno,Fun4}
     end;
-expr({call,Lc,{atom,_,instance}=Name,As0},St) ->
+expr({call,Anno,{atom,_,instance}=Name,As0},St) ->
     %% All local functions 'instance(...)' are static by definition,
     %% so they do not take a 'THIS' argument when called
     As1 = expr_list(As0,St),
-    {call,Lc,Name,As1};
-expr({call,Lc,{atom,_,new}=Name,As0},St) ->
+    {call,Anno,Name,As1};
+expr({call,Anno,{atom,_,new}=Name,As0},St) ->
     %% All local functions 'new(...)' are static by definition,
     %% so they do not take a 'THIS' argument when called
     As1 = expr_list(As0,St),
-    {call,Lc,Name,As1};
-expr({call,Lc,{atom,_Lf,F}=Atom,As0}, #pmod{defined=Def}=St) ->
+    {call,Anno,Name,As1};
+expr({call,Anno,{atom,_Lf,F}=Atom,As0}, #pmod{defined=Def}=St) ->
     As1 = expr_list(As0,St),
     case gb_sets:is_member({F,length(As0)}, Def) of
 	false ->
 	    %% BIF or imported function.
-	    {call,Lc,Atom,As1};
+	    {call,Anno,Atom,As1};
 	true ->
 	    %% Local function call - needs THIS parameter.
-	    {call,Lc,Atom,As1 ++ [{var,0,'THIS'}]}
+	    {call,Anno,Atom,As1 ++ [{var,0,'THIS'}]}
     end;
-expr({call,Line,F0,As0},St) ->
+expr({call,Anno,F0,As0},St) ->
     %% Other function call
     F1 = expr(F0,St),
     As1 = expr_list(As0,St),
-    {call,Line,F1,As1};
-expr({'catch',Line,E0},St) ->
+    {call,Anno,F1,As1};
+expr({'catch',Anno,E0},St) ->
     E1 = expr(E0,St),
-    {'catch',Line,E1};
-expr({match,Line,P,E0},St) ->
+    {'catch',Anno,E1};
+expr({match,Anno,P,E0},St) ->
     E1 = expr(E0,St),
-    {match,Line,P,E1};
-expr({bin,Line,Fs},St) ->
+    {match,Anno,P,E1};
+expr({bin,Anno,Fs},St) ->
     Fs2 = pattern_grp(Fs,St),
-    {bin,Line,Fs2};
-expr({op,Line,Op,A0},St) ->
+    {bin,Anno,Fs2};
+expr({op,Anno,Op,A0},St) ->
     A1 = expr(A0,St),
-    {op,Line,Op,A1};
-expr({op,Line,Op,L0,R0},St) ->
+    {op,Anno,Op,A1};
+expr({op,Anno,Op,L0,R0},St) ->
     L1 = expr(L0,St),
     R1 = expr(R0,St),
-    {op,Line,Op,L1,R1};
+    {op,Anno,Op,L1,R1};
 %% The following are not allowed to occur anywhere!
-expr({remote,Line,M0,F0},St) ->
+expr({remote,Anno,M0,F0},St) ->
     M1 = expr(M0,St),
     F1 = expr(F0,St),
-    {remote,Line,M1,F1}.
+    {remote,Anno,M1,F1}.
 
 expr_list([E0|Es],St) ->
     E1 = expr(E0,St),
     [E1|expr_list(Es,St)];
 expr_list([],_St) -> [].
 
-record_fields([{record_field,L,K,E0}|T],St) ->
+record_fields([{record_field,Anno,K,E0}|T],St) ->
     E = expr(E0,St),
-    [{record_field,L,K,E}|record_fields(T,St)];
+    [{record_field,Anno,K,E}|record_fields(T,St)];
 record_fields([],_) -> [].
 
 icr_clauses([C0|Cs],St) ->
@@ -439,12 +440,12 @@ icr_clauses([C0|Cs],St) ->
     [C1|icr_clauses(Cs,St)];
 icr_clauses([],_St) -> [].
 
-lc_bc_quals([{generate,Line,P,E0}|Qs],St) ->
+lc_bc_quals([{generate,Anno,P,E0}|Qs],St) ->
     E1 = expr(E0,St),
-    [{generate,Line,P,E1}|lc_bc_quals(Qs,St)];
-lc_bc_quals([{b_generate,Line,P,E0}|Qs],St) ->
+    [{generate,Anno,P,E1}|lc_bc_quals(Qs,St)];
+lc_bc_quals([{b_generate,Anno,P,E0}|Qs],St) ->
     E1 = expr(E0,St),
-    [{b_generate,Line,P,E1}|lc_bc_quals(Qs,St)];
+    [{b_generate,Anno,P,E1}|lc_bc_quals(Qs,St)];
 lc_bc_quals([E0|Qs],St) ->
     E1 = expr(E0,St),
     [E1|lc_bc_quals(Qs,St)];
@@ -455,11 +456,11 @@ fun_clauses([C0|Cs],St) ->
     [C1|fun_clauses(Cs,St)];
 fun_clauses([],_St) -> [].
 
-make_vars(N, L) ->
-    make_vars(1, N, L).
+make_vars(N, A) ->
+    make_vars(1, N, A).
 
-make_vars(N, M, L) when N =< M ->
+make_vars(N, M, A) when N =< M ->
     V = list_to_atom("X"++integer_to_list(N)),
-    [{var,L,V} | make_vars(N + 1, M, L)];
+    [{var,A,V} | make_vars(N + 1, M, A)];
 make_vars(_, _, _) ->
     [].
