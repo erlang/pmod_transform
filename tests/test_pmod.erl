@@ -109,7 +109,7 @@ defining_instance_test() ->
 fail_compile(M) ->
     Filename = atom_to_list(M) ++ ".erl",
     error = compile:file(M),
-    case compile:file(M, [return_errors]) of
+    case compile:file(M, [return_errors, {error_location, line}]) of
 	{error,[{Filename,Es}],[]} ->
 	    Es
     end.
