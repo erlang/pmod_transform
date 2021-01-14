@@ -2,5 +2,6 @@
 {application, pmod_transform,
  [{description, "Parameterized Modules"},
   {vsn, git},
-  {modules, [pmod_pt]}
+  {modules, [pmod_pt]},
+  {applications,[]}
  ]}.
